@@ -598,21 +598,20 @@
 
     /* Complementary weapons: hidden when the loadout is full (4/4).
        For each candidate weapon not already selected, score = sum of weights
-       of the stats it shares with the currently-selected set. Sort by score
-       DESC, alpha tiebreaker. */
+       of the stats it benefits from, EXCLUDING dead stats (count == 0 or
+       weight == 0). Situational stats (count == 1) keep their full weight.
+       Sort by score DESC, alpha tiebreaker. */
     if (denominator >= 4) {
       complementarySection.style.display = "none";
     } else {
-      const selectedStats = new Set();
-      selected.forEach(weapon => {
-        WEAPONS[weapon].forEach(stat => selectedStats.add(stat));
-      });
-
       const candidates = Object.keys(WEAPONS).filter(w => !selected.includes(w));
 
       const ranked = candidates.map(weapon => {
-        const shared = WEAPONS[weapon].filter(s => selectedStats.has(s));
-        const score = Math.round(shared.reduce((sum, s) => sum + weights[s], 0) * 100) / 100;
+        const score = Math.round(
+          WEAPONS[weapon]
+            .filter(s => counts[s] > 0 && weights[s] > 0)
+            .reduce((sum, s) => sum + weights[s], 0) * 100
+        ) / 100;
         return { weapon, score };
       });
 
