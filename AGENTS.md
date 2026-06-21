@@ -116,6 +116,23 @@ Weapons already selected in any slot are marked `disabled` in all other slots (r
 
 ## Design choices and rationale
 
+### Settings configuration block
+
+All tunable parameters are centralized in a `SETTINGS` object at the top of the script (immediately after the `<script>` tag). This includes:
+
+- **DEBUG**: Console logging toggle (default: `false` for clean production use)
+- **Timer configuration**: Debounce delays (`SLIDER_DEBOUNCE_MS`, `SLIDER_SAFETY_MS`)
+- **Slider behavior**: Initial max, dynamic max multiplier, floor, and step size
+- **Weight defaults**: Default weight value and decimal display precision
+
+A `debug()` helper function wraps all console.log calls and respects the DEBUG flag. This eliminates log spam in normal use while making troubleshooting trivial (just flip one boolean).
+
+Benefits:
+- Single source of truth for magic numbers
+- Self-documenting via descriptive variable names
+- Easy experimentation without code hunting
+- Clean separation of configuration from logic
+
 ### "Simple, clean" visual design
 
 - System font stack — uses whatever the OS provides
@@ -136,22 +153,22 @@ Weights and weapon selections reset on refresh. This was a deliberate choice —
 
 The stat rows show just the count (e.g., `2/4`) — no per-row weight badges. Weights influence ordering silently. Reasoning: showing 10 weight values on every stat row would add visual noise without much value; users can see the effect of their weights by watching the list reorder.
 
-### Sliders paired with number inputs
+### Sliders paired with text inputs
 
 Each weight row is laid out with the label on its own line above the controls:
 
 ```
 Stat Name
-[Slider ────────] [Number]
+[Slider ────────] [Text Input]
 ```
 
-- **Number input** — `step="0.1"` (matches the slider), precise control via arrow keys and direct typing. No upper bound; users can type any positive value. Always displays two decimals (e.g., "1.00", "1.37"); the value is reformatted to `toFixed(2)` on blur/Enter, not while typing, so partial entries like "1." aren't disturbed mid-edit. Accepts basic arithmetic expressions (see below); non-numeric input resets to `1.00` on commit.
-- **Slider** — `step="0.1"`, for quick rough adjustments by dragging.
-- **Two-way sync** — moving either control mirrors the value into the other (the number input picks up the slider's raw value via `toFixed(2)`; the slider picks up the number's raw value). The displayed state stays consistent across both controls.
+- **Text input** — `type="text"` with `inputmode="decimal"` (provides numeric keyboard on mobile while allowing expression characters). Precise control via direct typing. No upper bound; users can type any positive value. Always displays decimal places per `SETTINGS.WEIGHT_DECIMAL_PLACES` (e.g., "1.00", "1.37"); the value is reformatted to `toFixed(SETTINGS.WEIGHT_DECIMAL_PLACES)` on blur/Enter, not while typing, so partial entries like "1." aren't disturbed mid-edit. Accepts basic arithmetic expressions (see below); non-numeric input resets to the default weight on commit.
+- **Slider** — `step` matches `SETTINGS.SLIDER_MAX_STEP`, for quick rough adjustments by dragging.
+- **Two-way sync** — moving either control mirrors the value into the other (the text input picks up the slider's raw value via `toFixed()`; the slider picks up the text input's parsed value). The displayed state stays consistent across both controls.
 
-The slider's `max` is recomputed on every weight change: `ceil(1.25 × max(weights))` rounded up to the next `0.1`. Default state (all weights = 1.0) yields `max = 1.3`. A floor of `0.1` keeps sliders usable when every weight is zero.
+The slider's `max` is recomputed on every weight change: `ceil(SETTINGS.SLIDER_MAX_MULTIPLIER × max(weights))` rounded up to the next `SETTINGS.SLIDER_MAX_STEP`. Default state (all weights = 1.0) yields `max = 1.3` (from `SETTINGS.SLIDER_INITIAL_MAX`). A floor of `SETTINGS.SLIDER_MAX_FLOOR` keeps sliders usable when every weight is zero.
 
-If the number input holds a value above the current slider max, the slider thumb pins at the right edge. The next weight change recomputes the max and the thumb jumps to its new position. This means users can type a value first and then continue dragging without the slider fighting them.
+If the text input holds a value above the current slider max, the slider thumb pins at the right edge. The next weight change recomputes the max and the thumb jumps to its new position. This means users can type a value first and then continue dragging without the slider fighting them.
 
 Combining both controls gives the best of each: precise numeric entry for fine-tuning, plus a quick drag for coarse adjustments.
 
@@ -175,7 +192,7 @@ Supported syntax:
 
 Standard precedence (`*`/`/` before `+`/`-`) and unary minus work; scientific notation (`1e2`), multiple decimals (`1.5.5`), and unary plus (`+5`) are not supported. Negative results floor at `0`; non-finite results (`Infinity`, `NaN`) and any parse error trigger the `1.00` reset on commit.
 
-During typing, invalid input is **ignored** — `weights[stat]` keeps its last valid value so the middle panel doesn't flicker. The reset to `1.00` only happens on commit (blur/Enter), matching the existing `toFixed(2)` formatting rule.
+During typing, invalid input is **ignored** — `weights[stat]` keeps its last valid value so the middle panel doesn't flicker. The reset to `1.00` only happens on commit (blur/Enter), matching the existing `toFixed(SETTINGS.WEIGHT_DECIMAL_PLACES)` formatting rule.
 
 ### Single-file architecture
 

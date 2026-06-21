@@ -62,5 +62,19 @@ you've set, so you never run out of headroom while dragging.
   design — keeps the tool stateless and predictable.
 - The tool follows your OS theme (light or dark) automatically.
 - Below a 960px viewport the panels stack vertically.
+
+## Customizing behavior
+
+Open `index.html` in a text editor and look for the `SETTINGS` block at the
+top of the `<script>` section (right after the opening `<script>` tag).
+There you can adjust:
+
+- **DEBUG** — set to `true` to enable console logging for troubleshooting
+- **Timings** — debounce delays for slider behavior
+- **Slider config** — initial max, multiplier, step size, minimum value
+- **Weight defaults** — default weight value and decimal display precision
+
+All tunable parameters are centralized in this block with descriptive names
+and inline comments. No need to hunt through the code to tweak behavior.
 </content>
 </invoke>
