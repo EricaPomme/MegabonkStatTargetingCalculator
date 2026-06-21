@@ -491,6 +491,13 @@
   const weights = {};
   ALL_STATS.forEach(stat => weights[stat] = 1.0);
 
+  /* Debounce timers for slider max recalculation. We use two timers:
+     - Short timer (250ms): gives immediate feedback when dragging stops
+     - Safety timer (1000ms): ensures recalculation even if mouseup/touchend
+       doesn't fire (e.g., focus loss, unusual browser behavior) */
+  let sliderMaxDebounceTimer = null;
+  let sliderMaxSafetyTimer = null;
+
   /* Build one weight-control row per stat. Labels click the number input
      (label[for]). Each row has a slider + number input sharing data-stat;
      any input event updates the other to mirror the new value. */
@@ -505,7 +512,9 @@
 
   /* Live-update weights on every change to either control. Expressions
      ("3/2", "5*2") are evaluated; invalid input is ignored mid-typing so
-     weights stay at their last valid value (the field resets on commit). */
+     weights stay at their last valid value (the field resets on commit).
+     Slider max recalculation is debounced (250ms) to avoid jumpy behavior
+     during drag. */
   weightGrid.addEventListener("input", (e) => {
     if (!e.target.matches(".weight-control")) return;
     const stat = e.target.dataset.stat;
@@ -516,14 +525,15 @@
     weightGrid.querySelectorAll(`.weight-control[data-stat="${CSS.escape(stat)}"]`).forEach(el => {
       if (el !== e.target) setControlValue(el, weights[stat]);
     });
-    updateSliderMax();
+    updateSliderMaxDebounced();
     render();
   });
 
   /* On commit (blur or Enter), reformat valid input to two decimals and
      reset invalid input to 1.00 — matching the "reset on non-numeric"
      rule. Formatting here (not mid-typing) keeps the cursor from jumping
-     while users build up expressions like "3/2". */
+     while users build up expressions like "3/2". Force an immediate slider
+     max update to ensure consistency. */
   weightGrid.addEventListener("change", (e) => {
     if (!e.target.matches(".weight-input")) return;
     const stat = e.target.dataset.stat;
@@ -533,15 +543,17 @@
       weightGrid.querySelectorAll(`.weight-control[data-stat="${CSS.escape(stat)}"]`).forEach(el => {
         setControlValue(el, 1);
       });
-      updateSliderMax();
+      updateSliderMaxImmediate();
       render();
     } else {
       weights[stat] = parsed;
       e.target.value = parsed.toFixed(2);
+      updateSliderMaxImmediate();
     }
   });
 
-  /* Reset every weight to neutral (1.0) on both controls and re-render. */
+  /* Reset every weight to neutral (1.0) on both controls and re-render.
+     Force an immediate slider max update. */
   resetBtn.addEventListener("click", () => {
     ALL_STATS.forEach(stat => {
       weights[stat] = 1.0;
@@ -549,8 +561,22 @@
     document.querySelectorAll(".weight-control").forEach(input => {
       setControlValue(input, 1);
     });
-    updateSliderMax();
+    updateSliderMaxImmediate();
     render();
+  });
+
+  /* Force immediate slider max update when user finishes dragging a slider
+     (mouseup for desktop, touchend for touch devices). */
+  weightGrid.addEventListener("mouseup", (e) => {
+    if (e.target.matches(".weight-slider")) {
+      updateSliderMaxImmediate();
+    }
+  });
+
+  weightGrid.addEventListener("touchend", (e) => {
+    if (e.target.matches(".weight-slider")) {
+      updateSliderMaxImmediate();
+    }
   });
 
   /* Clear all weapon selections. Repopulate dropdowns so previously-disabled
@@ -612,15 +638,66 @@
   }
 
   /* Recomputes every slider's max so the highest-weighted stat still has
-     headroom to drag. Max = ceil(1.25 × highest weight), rounded up to the
+     headroom to drag. Max = ceil(2.0 × highest weight), rounded up to the
      next 0.1. Floor of 0.1 keeps sliders usable when every weight is 0. */
   function updateSliderMax() {
     const highest = Math.max(...ALL_STATS.map(s => weights[s]), 0);
-    const capped = Math.ceil(highest * 1.25 * 10) / 10;
+    const capped = Math.ceil(highest * 2.0 * 10) / 10;
     const sliderMax = Math.max(capped, 0.1);
     document.querySelectorAll(".weight-slider").forEach(s => {
       s.max = sliderMax;
     });
+  }
+
+  /* Debounced version of updateSliderMax — waits 250ms after the last input
+     event before recalculating. Also sets a 1000ms safety timeout in case
+     mouseup/touchend never fires. Prevents jumpy slider behavior during drag. */
+  function updateSliderMaxDebounced() {
+    // Clear any existing short debounce timer
+    if (sliderMaxDebounceTimer !== null) {
+      clearTimeout(sliderMaxDebounceTimer);
+    }
+    
+    // Set the short debounce (250ms) - fires if user pauses during drag
+    sliderMaxDebounceTimer = setTimeout(() => {
+      updateSliderMax();
+      sliderMaxDebounceTimer = null;
+      // Clear safety timer since we've already updated
+      if (sliderMaxSafetyTimer !== null) {
+        clearTimeout(sliderMaxSafetyTimer);
+        sliderMaxSafetyTimer = null;
+      }
+    }, 250);
+    
+    // Also set/reset the safety timeout (1000ms) - fires if mouseup/touchend never occurs
+    if (sliderMaxSafetyTimer !== null) {
+      clearTimeout(sliderMaxSafetyTimer);
+    }
+    sliderMaxSafetyTimer = setTimeout(() => {
+      updateSliderMax();
+      sliderMaxSafetyTimer = null;
+      // Clear short debounce since we've already updated
+      if (sliderMaxDebounceTimer !== null) {
+        clearTimeout(sliderMaxDebounceTimer);
+        sliderMaxDebounceTimer = null;
+      }
+    }, 1000);
+  }
+
+  /* Immediate version — cancels any pending debounced updates and recalculates
+     right away. Called on commit events (change, mouseup, touchend) to ensure
+     the slider max is correct when the user finishes interacting. */
+  function updateSliderMaxImmediate() {
+    // Clear both timers
+    if (sliderMaxDebounceTimer !== null) {
+      clearTimeout(sliderMaxDebounceTimer);
+      sliderMaxDebounceTimer = null;
+    }
+    if (sliderMaxSafetyTimer !== null) {
+      clearTimeout(sliderMaxSafetyTimer);
+      sliderMaxSafetyTimer = null;
+    }
+    updateSliderMax();
   }
 
   /* Sets a weight control's display value. Number inputs get two-decimal
