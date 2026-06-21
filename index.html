@@ -747,11 +747,6 @@
       return;
     }
 
-    commonSection.style.display = common.length > 0 ? "" : "none";
-    situationalSection.style.display = situational.length > 0 ? "" : "none";
-    deadSection.style.display = dead.length > 0 ? "" : "none";
-    emptyState.style.display = "none";
-
     /* Tally: for each stat, count how many of the selected weapons benefit. */
     const counts = {};
     ALL_STATS.forEach(stat => counts[stat] = 0);
@@ -791,11 +786,14 @@
       `<li><span class="stat-name">${escapeHtml(s)}</span><span class="stat-count">${counts[s]}/${denominator}</span></li>`
     ).join("");
 
-    situationalSection.style.display = situational.length > 0 ? "" : "none";
-
     deadList.innerHTML = dead.map(s =>
       `<li><span class="stat-name">${escapeHtml(s)}</span></li>`
     ).join("");
+
+    commonSection.style.display = common.length > 0 ? "" : "none";
+    situationalSection.style.display = situational.length > 0 ? "" : "none";
+    deadSection.style.display = dead.length > 0 ? "" : "none";
+    emptyState.style.display = "none";
 
     /* Complementary weapons: hidden when the loadout is full (4/4).
        For each candidate weapon not already selected, score = sum of weights
