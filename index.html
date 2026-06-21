@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Megabonk Stat Targeting</title>
+<style>
+  /* ---------- Theme tokens (light default, dark via prefers-color-scheme) ---------- */
+  :root {
+    --bg: #fafaf9;
+    --card-bg: #ffffff;
+    --text: #1c1917;
+    --text-muted: #78716c;
+    --text-dim: #a8a29e;
+    --text-pill: #57534e;
+    --border: #e7e5e4;
+    --border-input: #d6d3d1;
+    --row-divider: #f5f5f4;
+    --pill-bg: #f5f5f4;
+    --select-bg: #ffffff;
+    --select-disabled-bg: #fafaf9;
+    --accent: #0ea5e9;
+    --accent-glow: rgba(14, 165, 233, 0.15);
+    --caret-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2378716c' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917;
+      --card-bg: #292524;
+      --text: #fafaf9;
+      --text-muted: #a8a29e;
+      --text-dim: #78716c;
+      --text-pill: #d6d3d1;
+      --border: #44403c;
+      --border-input: #57534e;
+      --row-divider: #44403c;
+      --pill-bg: #44403c;
+      --select-bg: #292524;
+      --select-disabled-bg: #1c1917;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.2);
+      --caret-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a8a29e' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  /* ---------- Base elements (body, headings, lists) ---------- */
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.2s, color 0.2s;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr 260px;
+    gap: 1.25rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    align-items: start;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 2rem;
+  }
+
+  .weapon-panel,
+  .weight-panel {
+    position: sticky;
+    top: 2rem;
+  }
+
+  @media (max-width: 960px) {
+  /* ---------- Layout: three-panel grid with sticky side panels ---------- */
+  .layout {
+      display: flex;
+      flex-direction: column;
+    }
+    .weapon-panel,
+    .weight-panel {
+      position: static;
+    }
+  }
+
+  h1 {
+    margin: 0 0 0.25rem;
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  .subtitle {
+    margin: 0 0 2rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  /* ---------- Weapon selectors (stacked dropdowns + reset) ---------- */
+  .slots {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .weapon-slot {
+    width: 100%;
+    padding: 0.5rem 1.75rem 0.5rem 0.625rem;
+    border: 1px solid var(--border-input);
+    border-radius: 6px;
+    background-color: var(--select-bg);
+    font-size: 0.875rem;
+    font-family: inherit;
+    color: inherit;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: var(--caret-svg);
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.2s;
+  }
+
+  .weapon-slot:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .weapon-slot:disabled {
+    background-color: var(--select-disabled-bg);
+    color: var(--text-dim);
+    cursor: not-allowed;
+  }
+
+  .weapon-reset-btn {
+    margin-top: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    background: transparent;
+    border: 1px solid var(--border-input);
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  }
+
+  .weapon-reset-btn:hover {
+    border-color: var(--text-muted);
+    color: var(--text);
+  }
+
+  .weapon-reset-btn:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  /* ---------- Stat sections (common / situational / dead / complementary) ---------- */
+  section {
+    margin-top: 1.75rem;
+  }
+
+  section h2 {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin: 0 0 0.5rem;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.625rem 0;
+    border-top: 1px solid var(--row-divider);
+  }
+
+  li:first-child {
+    border-top: none;
+  }
+
+  .stat-name {
+    font-size: 0.9375rem;
+  }
+
+  .stat-count {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-pill);
+    font-size: 0.8125rem;
+    background: var(--pill-bg);
+    padding: 0.1875rem 0.5625rem;
+    border-radius: 999px;
+    font-weight: 500;
+  }
+
+  .dead-list li {
+    opacity: 0.55;
+  }
+
+  .empty-state {
+    color: var(--text-dim);
+    font-size: 0.875rem;
+    padding: 1.25rem 0 0.5rem;
+    text-align: center;
+    font-style: italic;
+  }
+
+  /* ---------- Sidebar: stat weight inputs + reset ---------- */
+  .panel-title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin: 0 0 0.75rem;
+  }
+
+  .weight-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .weight-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .weight-label {
+    font-size: 0.875rem;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .weight-input {
+    width: 70px;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--border-input);
+    border-radius: 4px;
+    background-color: var(--select-bg);
+    font-size: 0.875rem;
+    font-family: inherit;
+    color: inherit;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.2s;
+  }
+
+  .weight-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .reset-btn {
+    margin-top: 1rem;
+    width: 100%;
+    padding: 0.45rem 0.75rem;
+    background: transparent;
+    border: 1px solid var(--border-input);
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  }
+
+  .reset-btn:hover {
+    border-color: var(--text-muted);
+    color: var(--text);
+  }
+
+  .reset-btn:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+</style>
+</head>
+<!--
+  Megabonk Stat Targeting — single-file HTML/JS companion tool.
+  Three-panel layout: weapons (left, sticky), stat results (middle), weights (right, sticky).
+-->
+<body>
+<div class="layout">
+  <!-- Left panel: title, subtitle, weapon selectors -->
+  <div class="card weapon-panel">
+    <h1>Megabonk Stat Targeting</h1>
+    <p class="subtitle">Stats come from items and buffs &mdash; pick weapons to see which to chase.</p>
+
+    <h2 class="panel-title">Weapons</h2>
+    <div class="slots">
+      <select class="weapon-slot" aria-label="Weapon slot 1"><option value="">Slot 1</option></select>
+      <select class="weapon-slot" aria-label="Weapon slot 2"><option value="">Slot 2</option></select>
+      <select class="weapon-slot" aria-label="Weapon slot 3"><option value="">Slot 3</option></select>
+      <select class="weapon-slot" aria-label="Weapon slot 4"><option value="">Slot 4</option></select>
+    </div>
+
+    <button class="weapon-reset-btn" id="weapon-reset-btn" type="button">Reset weapons</button>
+  </div>
+
+  <!-- Middle panel: stat results — common, situational, dead, complementary -->
+  <div class="card middle-panel">
+    <section id="common-section">
+      <h2>Common Stats &middot; Chase these</h2>
+      <ul id="common-list"></ul>
+    </section>
+
+    <section id="situational-section">
+      <h2>Situational Stats &middot; One weapon benefits</h2>
+      <ul id="situational-list"></ul>
+    </section>
+
+    <section id="dead-section">
+      <h2>Dead Stats &middot; No benefit</h2>
+      <ul id="dead-list"></ul>
+    </section>
+
+    <section id="complementary-section">
+      <h2>Complementary Weapons &middot; Pick these next</h2>
+      <ul id="complementary-list"></ul>
+    </section>
+
+    <div id="empty-state" class="empty-state">
+      Select a weapon to begin.
+    </div>
+  </div>
+
+  <!-- Right panel: per-stat user weight inputs -->
+  <aside class="card weight-panel">
+    <h2 class="panel-title">Stat Weights</h2>
+    <div class="weight-grid" id="weight-grid"></div>
+    <button class="reset-btn" id="reset-btn" type="button">Reset all</button>
+  </aside>
+</div>
+
+<script>
+  /* ============================================================================
+     DATA TABLES
+     ALL_STATS: master list of every stat a weapon can benefit from.
+                Used as the iteration order for all stat displays.
+     WEAPONS:    lookup table — each weapon names the stats it benefits from.
+                 Weapons do NOT add stats; they benefit from stats provided
+                 by items/buffs elsewhere in the game.
+     ============================================================================ */
+  const ALL_STATS = [
+    "Attack Speed", "Crit Chance", "Crit Damage", "Damage", "Duration",
+    "Knockback", "Projectile Bounces", "Projectile Count",
+    "Projectile Speed", "Size"
+  ];
+
+  const WEAPONS = {
+    "Aegis":            ["Attack Speed", "Damage", "Knockback", "Projectile Count", "Size"],
+    "Aura":             ["Attack Speed", "Damage", "Size"],
+    "Axe":              ["Attack Speed", "Damage", "Duration", "Projectile Count", "Size"],
+    "Bananarang":       ["Attack Speed", "Damage", "Projectile Count", "Projectile Speed", "Size"],
+    "Black Hole":       ["Attack Speed", "Damage", "Duration", "Projectile Count", "Size"],
+    "Blood Magic":      ["Attack Speed", "Damage", "Projectile Count", "Size"],
+    "Bone":             ["Attack Speed", "Crit Chance", "Crit Damage", "Damage", "Projectile Bounces", "Projectile Count", "Projectile Speed"],
+    "Bow":              ["Attack Speed", "Crit Chance", "Crit Damage", "Damage", "Projectile Count", "Projectile Speed", "Size"],
+    "Chunkers":         ["Attack Speed", "Damage", "Knockback", "Projectile Count", "Projectile Speed", "Size"],
+    "Corrupted Sword":  ["Attack Speed", "Damage", "Projectile Count", "Projectile Speed", "Size"],
+    "Dexecutioner":     ["Attack Speed", "Crit Chance", "Damage", "Projectile Count", "Size"],
+    "Dice":             ["Attack Speed", "Crit Chance", "Crit Damage", "Damage", "Projectile Count", "Projectile Speed", "Size"],
+    "Dragon's Breath":  ["Attack Speed", "Damage", "Duration", "Size"],
+    "Firestaff":        ["Attack Speed", "Damage", "Projectile Count", "Projectile Speed", "Size"],
+    "Flamewalker":      ["Attack Speed", "Damage", "Duration", "Projectile Count", "Size"],
+    "Frostwalker":      ["Attack Speed", "Damage", "Duration", "Size"],
+    "Hero Sword":       ["Attack Speed", "Damage", "Projectile Count", "Projectile Speed", "Size"],
+    "Katana":           ["Attack Speed", "Crit Chance", "Crit Damage", "Damage", "Projectile Count", "Size"],
+    "Lightning Staff":  ["Attack Speed", "Damage", "Projectile Bounces", "Projectile Count", "Size"],
+    "Mines":            ["Attack Speed", "Damage", "Duration", "Projectile Count", "Size"],
+    "Poison Flask":     ["Attack Speed", "Damage", "Duration", "Projectile Count", "Projectile Speed", "Size"],
+    "Revolver":         ["Attack Speed", "Crit Chance", "Crit Damage", "Damage", "Projectile Bounces", "Projectile Count", "Projectile Speed"],
+    "Scythe":           [], // NYI
+    "Shotgun":          ["Attack Speed", "Crit Chance", "Crit Damage", "Damage", "Projectile Count", "Size"],
+    "Slutty Rocket":    ["Attack Speed", "Crit Chance", "Damage", "Projectile Count", "Projectile Speed"],
+    "Sniper Rifle":     ["Attack Speed", "Damage", "Projectile Count", "Size"],
+    "Space Noodle":     ["Attack Speed", "Damage", "Duration", "Size"],
+    "Tornado":          ["Attack Speed", "Damage", "Knockback", "Projectile Count", "Projectile Speed", "Size"],
+    "Wireless Dagger":  ["Attack Speed", "Damage", "Projectile Bounces", "Projectile Count", "Projectile Speed"]
+  };
+
+  /* ============================================================================
+     DOM REFERENCES
+     Cached lookups for the elements we read/write during render.
+     Sections hold both the header bar and the list — we toggle visibility on
+     the section element, then innerHTML the list element.
+     ============================================================================ */
+  const slots = document.querySelectorAll(".weapon-slot");
+  const commonSection = document.getElementById("common-section");
+  const situationalSection = document.getElementById("situational-section");
+  const deadSection = document.getElementById("dead-section");
+  const complementarySection = document.getElementById("complementary-section");
+  const commonList = document.getElementById("common-list");
+  const situationalList = document.getElementById("situational-list");
+  const deadList = document.getElementById("dead-list");
+  const complementaryList = document.getElementById("complementary-list");
+  const emptyState = document.getElementById("empty-state");
+  const weightGrid = document.getElementById("weight-grid");
+  const resetBtn = document.getElementById("reset-btn");
+  const weaponResetBtn = document.getElementById("weapon-reset-btn");
+
+  /* ============================================================================
+     STATE: user-preference stat weights
+     In-memory only (no localStorage). Default 1.0 means "neutral" — the
+     multiplier has no effect on default state, so behavior matches a
+     pre-weights version of the tool. Set to 0 to "opt out" of a stat.
+     ============================================================================ */
+  const weights = {};
+  ALL_STATS.forEach(stat => weights[stat] = 1.0);
+
+  /* Build one weight-input row per stat. Labels click the inputs (label[for]). */
+  weightGrid.innerHTML = ALL_STATS.map(stat => {
+    const id = "weight-" + stat.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
+    return `<div class="weight-row">
+      <label for="${id}" class="weight-label">${escapeHtml(stat)}</label>
+      <input type="number" min="0" step="0.5" value="1" class="weight-input" id="${id}" data-stat="${escapeHtml(stat)}">
+    </div>`;
+  }).join("");
+
+  /* Live-update weights on every keystroke; re-render the middle panel. */
+  weightGrid.addEventListener("input", (e) => {
+    if (!e.target.matches(".weight-input")) return;
+    const stat = e.target.dataset.stat;
+    const raw = parseFloat(e.target.value);
+    weights[stat] = isNaN(raw) ? 0 : Math.max(0, raw);
+    render();
+  });
+
+  /* Reset every weight to neutral (1.0) and re-render. */
+  resetBtn.addEventListener("click", () => {
+    ALL_STATS.forEach(stat => {
+      weights[stat] = 1.0;
+    });
+    document.querySelectorAll(".weight-input").forEach(input => {
+      input.value = "1";
+    });
+    render();
+  });
+
+  /* Clear all weapon selections. Repopulate dropdowns so previously-disabled
+     options become selectable again. */
+  weaponResetBtn.addEventListener("click", () => {
+    slots.forEach(slot => {
+      slot.value = "";
+    });
+    populateDropdowns();
+    render();
+  });
+
+  /* ============================================================================
+     HELPERS
+     ============================================================================ */
+
+  /* Returns the array of currently-selected weapon names (empty selections
+     filtered out). Order matches the slot order top-to-bottom. */
+  function getSelectedWeapons() {
+    return Array.from(slots)
+      .map(s => s.value)
+      .filter(v => v !== "");
+  }
+
+  /* Rebuilds every weapon dropdown's option list. Marks weapons already
+     selected in OTHER slots as disabled (so duplicate selection is impossible).
+     Preserves each slot's current selection across the rebuild. */
+  function populateDropdowns() {
+    const selected = getSelectedWeapons();
+    const weaponNames = Object.keys(WEAPONS);
+
+    slots.forEach(slot => {
+      const currentValue = slot.value;
+      const label = slot.getAttribute("aria-label");
+      slot.innerHTML = `<option value="">${label}</option>`;
+      weaponNames.forEach(weapon => {
+        const opt = document.createElement("option");
+        opt.value = weapon;
+        opt.textContent = weapon;
+        if (selected.includes(weapon) && weapon !== currentValue) {
+          opt.disabled = true;
+        }
+        slot.appendChild(opt);
+      });
+      slot.value = currentValue;
+    });
+  }
+
+  /* Safe HTML insertion helper. Uses textContent → innerHTML round-trip to
+     escape angle brackets and ampersands in stat/weapon names. */
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /* ============================================================================
+     MAIN RENDER
+     The single source of truth for the middle panel's contents.
+     Called whenever a weapon selection or weight changes.
+     ============================================================================ */
+  function render() {
+    const selected = getSelectedWeapons();
+    const denominator = selected.length;
+
+    /* Nothing selected: hide every section, show the empty-state prompt. */
+    if (denominator === 0) {
+      commonSection.style.display = "none";
+      situationalSection.style.display = "none";
+      deadSection.style.display = "none";
+      complementarySection.style.display = "none";
+      emptyState.style.display = "block";
+      return;
+    }
+
+    commonSection.style.display = "";
+    deadSection.style.display = "";
+    emptyState.style.display = "none";
+
+    /* Tally: for each stat, count how many of the selected weapons benefit. */
+    const counts = {};
+    ALL_STATS.forEach(stat => counts[stat] = 0);
+
+    selected.forEach(weapon => {
+      WEAPONS[weapon].forEach(stat => counts[stat]++);
+    });
+
+    /* Three buckets:
+         common       — count > 1 (multiple weapons benefit)
+         situational  — count == 1 (exactly one weapon benefits)
+         dead         — count == 0 OR weight == 0 (no benefit, or user opted out)
+       Sort common/situational by count * weight DESC, alpha tiebreaker.
+       Sort dead alphabetically. */
+    const common = ALL_STATS.filter(s => counts[s] > 1 && weights[s] > 0);
+    const situational = ALL_STATS.filter(s => counts[s] === 1 && weights[s] > 0);
+    const dead = ALL_STATS.filter(s => counts[s] === 0 || weights[s] === 0);
+
+    const byScore = (a, b) => {
+      const scoreA = counts[a] * weights[a];
+      const scoreB = counts[b] * weights[b];
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return a.localeCompare(b);
+    };
+
+    common.sort(byScore);
+    situational.sort(byScore);
+    dead.sort((a, b) => a.localeCompare(b));
+
+    /* Display: stat name + count/denominator for the active sections;
+       name only for dead (count is always 0 there). */
+    commonList.innerHTML = common.map(s =>
+      `<li><span class="stat-name">${escapeHtml(s)}</span><span class="stat-count">${counts[s]}/${denominator}</span></li>`
+    ).join("");
+
+    situationalList.innerHTML = situational.map(s =>
+      `<li><span class="stat-name">${escapeHtml(s)}</span><span class="stat-count">${counts[s]}/${denominator}</span></li>`
+    ).join("");
+
+    /* Hide situational entirely when empty (e.g., 4-weapon build where every
+       stat is shared by 2+). Common/Dead don't need this guard — common is
+       empty when only 1 weapon is picked (handled by the empty state above
+       only when ALL are empty), but otherwise is always populated. */
+    situationalSection.style.display = situational.length > 0 ? "" : "none";
+
+    deadList.innerHTML = dead.map(s =>
+      `<li><span class="stat-name">${escapeHtml(s)}</span></li>`
+    ).join("");
+
+    /* Complementary weapons: hidden when the loadout is full (4/4).
+       For each candidate weapon not already selected, score = sum of weights
+       of the stats it shares with the currently-selected set. Sort by score
+       DESC, alpha tiebreaker. */
+    if (denominator >= 4) {
+      complementarySection.style.display = "none";
+    } else {
+      const selectedStats = new Set();
+      selected.forEach(weapon => {
+        WEAPONS[weapon].forEach(stat => selectedStats.add(stat));
+      });
+
+      const candidates = Object.keys(WEAPONS).filter(w => !selected.includes(w));
+
+      const ranked = candidates.map(weapon => {
+        const shared = WEAPONS[weapon].filter(s => selectedStats.has(s));
+        const score = Math.round(shared.reduce((sum, s) => sum + weights[s], 0) * 100) / 100;
+        return { weapon, score };
+      });
+
+      ranked.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.weapon.localeCompare(b.weapon);
+      });
+
+      complementaryList.innerHTML = ranked.map(c =>
+        `<li><span class="stat-name">${escapeHtml(c.weapon)}</span><span class="stat-count">${c.score}</span></li>`
+      ).join("");
+
+      complementarySection.style.display = "";
+    }
+  }
+
+  /* ============================================================================
+     INITIALIZATION
+     Wire up the weapon selectors and do the first render.
+     ============================================================================ */
+  slots.forEach(slot => {
+    slot.addEventListener("change", () => {
+      populateDropdowns();
+      render();
+    });
+  });
+
+  populateDropdowns();
+  render();
+</script>
+</body>
+</html>
